@@ -1,6 +1,7 @@
 import io
 from pathlib import Path
-
+import os
+import gdown
 import cv2
 import pandas as pd
 import streamlit as st
@@ -10,23 +11,15 @@ from PIL import Image
 from torchvision import models, transforms
 from ultralytics import YOLO
 
-import os
-import gdown
-import streamlit as st
-
 FILE_ID = "1mxUO_r_Lub4MRvAyFWZ_OGbd8-N0DHjJ"
 MODEL_PATH = "best_resnet_gtsrb.pth"
 
-
 @st.cache_resource
 def download_model():
-  if not os.path.exists(MODEL_PATH):
-    with st.spinner(
-        "waiting ....."
-    ):
-      url = f"https://drive.google.com/uc?id={FILE_ID}"
-      gdown.download(url, MODEL_PATH, quiet=False)
-
+    if not os.path.exists(MODEL_PATH):
+        with st.spinner("جاري تحميل نموذج ResNet34 الذكي من السحابة... برجاء الانتظار..."):
+            url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
+            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
 
 download_model()
 
@@ -62,92 +55,36 @@ CLASS_NAMES = [
 
 st.set_page_config(
     page_title="ML CSC Final Project",
-    page_icon=None,
     layout="wide"
 )
 
-st.markdown(
-    """
-    <style>
-    .stApp, [data-testid="stHeader"] {
-        background-color: #000000;
-        color: #ffffff;
-    }
-    [data-testid="stFileUploader"] {
-        background-color: #000000;
-        border: 1px solid #333333;
-        border-radius: 5px;
-    }
-    [data-testid="stMetric"] {
-        background-color: #000000;
-        border: 1px solid #333333;
-        padding: 12px;
-        border-radius: 5px;
-    }
-    hr { border-color: #333333; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-st.title("ML CSC Final Project")
+st.title("ML CSC Final Project - Traffic Sign Recognition")
 st.write("Upload a traffic sign image. ResNet34 CNN classifies the image, and YOLOv8 detects traffic signs with bounding boxes.")
-
-@st.cache_data
-def load_ground_truth_lookup():
-    lookup = {}
-    for csv_name in ["Test.csv", "Train.csv"]:
-        csv_path = DATA_DIR / csv_name
-        if csv_path.exists():
-            df = pd.read_csv(csv_path)
-            if "Path" in df.columns and "ClassId" in df.columns:
-                for _, row in df.iterrows():
-                    filename = Path(str(row["Path"])).name.lower()
-                    lookup[filename] = int(row["ClassId"])
-    return lookup
-
 
 @st.cache_resource
 def load_cnn():
     if not CNN_MODEL_PATH.exists():
         return None
-
     model = models.resnet34(weights=None)
     model.fc = nn.Sequential(
         nn.Dropout(0.3),
         nn.Linear(model.fc.in_features, len(CLASS_NAMES))
     )
-
-    state = torch.load(
-        CNN_MODEL_PATH,
-        map_location="cpu",
-        weights_only=True
-    )
+    state = torch.load(CNN_MODEL_PATH, map_location="cpu", weights_only=True)
     model.load_state_dict(state)
     model.eval()
     return model
 
-
 def find_yolo_weights():
     candidates = [
-        BASE_DIR / "yolo_runs" / "gtsrb" / "weights" / "best.pt",
+        BASE_DIR / "yolov8n.pt",
         BASE_DIR / "best.pt",
+        BASE_DIR / "yolo_runs" / "gtsrb" / "weights" / "best.pt",
     ]
-
-    for pattern in (
-        "yolo_runs/**/weights/best.pt",
-        "runs/**/weights/best.pt",
-        "**/best.pt",
-    ):
-        for match in BASE_DIR.glob(pattern):
-            if match not in candidates:
-                candidates.append(match)
-
     for path in candidates:
         if path.exists() and path.is_file():
             return path
     return None
-
 
 @st.cache_resource
 def load_yolo():
@@ -156,17 +93,13 @@ def load_yolo():
         return None
     return YOLO(str(weights_path))
 
-
 cnn_transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize(MEAN, STD),
 ])
 
-uploaded_file = st.file_uploader(
-    "Choose a traffic sign image",
-    type=["jpg", "jpeg", "png", "webp"]
-)
+uploaded_file = st.file_uploader("Choose a traffic sign image", type=["jpg", "jpeg", "png", "webp"])
 
 if uploaded_file is not None:
     try:
@@ -176,44 +109,20 @@ if uploaded_file is not None:
         st.stop()
 
     st.subheader("Uploaded Image")
-    st.image(image, caption=uploaded_file.name, width="stretch")
-    ground_truth = load_ground_truth_lookup()
-    file_key = uploaded_file.name.lower()
-
-    if file_key in ground_truth:
-        real_id = ground_truth[file_key]
-        real_answer = f"{CLASS_NAMES[real_id]} (Class ID: {real_id})"
-    else:
-        selected_real = st.selectbox(
-            "Real answer (optional; used only for comparison)",
-            ["Not specified"] + [
-                f"{i}: {name}" for i, name in enumerate(CLASS_NAMES)
-            ],
-        )
-        if selected_real == "Not specified":
-            real_answer = "Not specified"
-        else:
-            real_id = int(selected_real.split(":")[0])
-            real_answer = f"{CLASS_NAMES[real_id]} (Class ID: {real_id})"
-
-    st.write(f"**Real answer:** {real_answer}")
+    st.image(image, caption=uploaded_file.name, use_container_width=True)
+    
     st.divider()
     st.header("CNN Classification — ResNet34")
 
     cnn_model = load_cnn()
     if cnn_model is None:
-        st.error(
-            "CNN weights not found. Put best_resnet_gtsrb.pth beside app.py."
-        )
+        st.error("CNN weights not found.")
     else:
         tensor = cnn_transform(image).unsqueeze(0)
-
         with torch.inference_mode():
             logits = cnn_model(tensor)
             probabilities = torch.softmax(logits, dim=1)[0]
-            top_scores, top_indices = torch.topk(
-                probabilities, k=min(5, len(CLASS_NAMES))
-            )
+            top_scores, top_indices = torch.topk(probabilities, k=min(5, len(CLASS_NAMES)))
 
         predicted_id = int(top_indices[0].item())
         predicted_name = CLASS_NAMES[predicted_id]
@@ -224,80 +133,45 @@ if uploaded_file is not None:
         c2.metric("Class ID", predicted_id)
         c3.metric("Confidence", f"{confidence:.2f}%")
 
-        if real_answer != "Not specified":
-            is_correct = real_answer.startswith(predicted_name + " (")
-            st.write(f"**Comparison with real answer:** {'Correct' if is_correct else 'Incorrect'}")
-
         st.write("**Top 5 CNN predictions**")
         top_df = pd.DataFrame({
             "Traffic sign": [CLASS_NAMES[int(i)] for i in top_indices],
             "Class ID": [int(i) for i in top_indices],
             "Probability (%)": [round(float(s) * 100, 2) for s in top_scores],
         })
-        st.dataframe(top_df, hide_index=True, width="stretch")
+        st.dataframe(top_df, hide_index=True, use_container_width=True)
 
     st.header("Object Detection — YOLOv8")
 
-    threshold = st.slider(
-        "Detection confidence threshold",
-        min_value=0.10,
-        max_value=0.90,
-        value=0.25,
-        step=0.05,
-    )
-
+    threshold = st.slider("Detection confidence threshold", 0.10, 0.90, 0.25, 0.05)
     yolo_model = load_yolo()
+    
     if yolo_model is None:
-        st.error(
-            "YOLO weights not found. Put best.pt beside app.py or in "
-            "yolo_runs/gtsrb/weights/best.pt."
-        )
+        st.error("YOLO weights not found. Please ensure yolov8n.pt or best.pt is uploaded to GitHub.")
     else:
         with st.spinner("Detecting objects..."):
-            result = yolo_model.predict(
-                source=image,
-                conf=threshold,
-                device="cpu",
-                verbose=False,
-            )[0]
+            result = yolo_model.predict(source=image, conf=threshold, device="cpu", verbose=False)[0]
 
         annotated = cv2.cvtColor(result.plot(), cv2.COLOR_BGR2RGB)
         boxes = result.boxes
 
         image_col, results_col = st.columns([1.3, 1])
         with image_col:
-            st.image(
-                annotated,
-                caption="YOLOv8 detections",
-                width="stretch",
-            )
+            st.image(annotated, caption="YOLOv8 detections", use_container_width=True)
 
         with results_col:
             count = 0 if boxes is None else len(boxes)
             st.metric("Objects detected", count)
-
-            if count == 0:
-                st.info("No objects detected at this confidence threshold.")
-            else:
+            if count > 0:
                 rows = []
                 for box in boxes:
                     class_id = int(box.cls.item())
                     confidence_value = float(box.conf.item()) * 100
                     names = result.names
-                    if isinstance(names, dict):
-                        class_name = names.get(class_id, str(class_id))
-                    else:
-                        class_name = names[class_id]
-
+                    class_name = names.get(class_id, str(class_id)) if isinstance(names, dict) else names[class_id]
                     rows.append({
                         "Detected class": class_name,
                         "Class ID": class_id,
                         "Confidence (%)": round(confidence_value, 2),
                     })
-
-                st.dataframe(
-                    pd.DataFrame(rows),
-                    hide_index=True,
-                    width="stretch",
-                )
-
+                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
