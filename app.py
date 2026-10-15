@@ -19,7 +19,7 @@ def download_model():
         with st.spinner("Wait ..."):
             import gdown
             url = f"https://drive.google.com/uc?id={FILE_ID}"
-            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+            gdown.download(url, output=MODEL_PATH, quiet=False, fuzzy=True)
 
 download_model()
 
