@@ -10,20 +10,29 @@ from PIL import Image
 from torchvision import models, transforms
 from ultralytics import YOLO
 
-FILE_ID = "1Y8Z5WslwgcNiDL_znPE6bet14ZmP92F_"
-MODEL_PATH = "best_resnet_gtsrb.pth"
+RESNET_FILE_ID = "1Y8Z5WslwgcNiDL_znPE6bet14ZmP92F_"
+RESNET_PATH = "best_resnet_gtsrb.pth"
+
+YOLO_FILE_ID = "1cLBmPcbHnJfc5gigszh6NfKlq1SjmhLf"
+YOLO_PATH = "best.pt"
 
 @st.cache_resource
-def download_model():
-    if not os.path.exists(MODEL_PATH):
-        with st.spinner("Wait ..."):
-            import gdown
-            gdown.download(id=FILE_ID, output=MODEL_PATH, quiet=False)
+def download_models():
+    import gdown
+    if not os.path.exists(RESNET_PATH) or os.path.getsize(RESNET_PATH) < 1000:
+        with st.spinner("Downloading ResNet model..."):
+            url = f"https://drive.google.com/uc?id={RESNET_FILE_ID}"
+            gdown.download(url, output=RESNET_PATH, quiet=False)
+            
+    if not os.path.exists(YOLO_PATH) or os.path.getsize(YOLO_PATH) < 1000:
+        with st.spinner("Downloading YOLO model..."):
+            url = f"https://drive.google.com/uc?id={YOLO_FILE_ID}"
+            gdown.download(url, output=YOLO_PATH, quiet=False)
 
-download_model()
+download_models()
 
 BASE_DIR = Path(__file__).resolve().parent
-CNN_MODEL_PATH = BASE_DIR / "best_resnet_gtsrb.pth"
+CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
 DATA_DIR = BASE_DIR / "archive (3)"
 
 IMAGE_SIZE = 128
@@ -95,8 +104,8 @@ def load_cnn():
 
 @st.cache_resource
 def load_yolo():
-    weights_path = BASE_DIR / "best.pt"
-    if weights_path.exists() and weights_path.is_file():
+    weights_path = BASE_DIR / YOLO_PATH
+    if weights_path.exists() and weights_path.is_file() and weights_path.stat().st_size > 1000:
         return YOLO(str(weights_path))
     return None
 
