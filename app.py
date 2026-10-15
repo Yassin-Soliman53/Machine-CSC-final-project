@@ -10,6 +10,26 @@ from PIL import Image
 from torchvision import models, transforms
 from ultralytics import YOLO
 
+import os
+import gdown
+import streamlit as st
+
+FILE_ID = "1mxUO_r_Lub4MRvAyFWZ_OGbd8-N0DHjJ"
+MODEL_PATH = "best_resnet_gtsrb.pth"
+
+
+@st.cache_resource
+def download_model():
+  if not os.path.exists(MODEL_PATH):
+    with st.spinner(
+        "waiting ....."
+    ):
+      url = f"https://drive.google.com/uc?id={FILE_ID}"
+      gdown.download(url, MODEL_PATH, quiet=False)
+
+
+download_model()
+
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / "best_resnet_gtsrb.pth"
 DATA_DIR = BASE_DIR / "archive (3)"
