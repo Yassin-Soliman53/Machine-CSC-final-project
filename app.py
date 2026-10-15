@@ -216,6 +216,8 @@ if uploaded_file is not None:
             result = yolo_model.predict(
                 source=image,
                 conf=threshold,
+                iou=0.45,
+                imgsz=640,
                 device="cpu",
                 verbose=False,
             )[0]
