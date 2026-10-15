@@ -95,14 +95,9 @@ def load_cnn():
 
 @st.cache_resource
 def load_yolo():
-    # البحث حصرياً عن ملف الـ best.pt الخاص بالتدريب لتجنب تحميل موديل COCO العام
-    candidates = [
-        BASE_DIR / "best.pt",
-        BASE_DIR / "yolo_runs" / "gtsrb" / "weights" / "best.pt",
-    ]
-    for path in candidates:
-        if path.exists() and path.is_file():
-            return YOLO(str(path))
+    weights_path = BASE_DIR / "best.pt"
+    if weights_path.exists() and weights_path.is_file():
+        return YOLO(str(weights_path))
     return None
 
 cnn_transform = transforms.Compose([
@@ -194,7 +189,7 @@ if uploaded_file is not None:
 
     yolo_model = load_yolo()
     if yolo_model is None:
-        st.error("YOLO custom weights (best.pt) not found. Please upload best.pt to your GitHub repository.")
+        st.error("YOLO weights (best.pt) not found.")
     else:
         with st.spinner("Detecting objects..."):
             result = yolo_model.predict(
