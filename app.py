@@ -18,8 +18,7 @@ def download_model():
     if not os.path.exists(MODEL_PATH):
         with st.spinner("Wait ..."):
             import gdown
-            url = f"https://drive.google.com/uc?id={FILE_ID}"
-            gdown.download(url, output=MODEL_PATH, quiet=False, fuzzy=True)
+            gdown.download(id=FILE_ID, output=MODEL_PATH, quiet=False)
 
 download_model()
 
