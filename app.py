@@ -19,15 +19,15 @@ YOLO_PATH = "best.pt"
 @st.cache_resource
 def download_models():
     import gdown
-    if not os.path.exists(RESNET_PATH) or os.path.getsize(RESNET_PATH) < 1000:
+    if not os.path.exists(RESNET_PATH) or os.path.getsize(RESNET_PATH) < 100000:
         with st.spinner("Downloading ResNet model..."):
             url = f"https://drive.google.com/uc?id={RESNET_FILE_ID}"
-            gdown.download(url, output=RESNET_PATH, quiet=False)
+            gdown.download(url, output=RESNET_PATH, quiet=False, fuzzy=True)
             
-    if not os.path.exists(YOLO_PATH) or os.path.getsize(YOLO_PATH) < 1000:
+    if not os.path.exists(YOLO_PATH) or os.path.getsize(YOLO_PATH) < 100000:
         with st.spinner("Downloading YOLO model..."):
             url = f"https://drive.google.com/uc?id={YOLO_FILE_ID}"
-            gdown.download(url, output=YOLO_PATH, quiet=False)
+            gdown.download(url, output=YOLO_PATH, quiet=False, fuzzy=True)
 
 download_models()
 
@@ -84,7 +84,7 @@ def load_ground_truth_lookup():
 
 @st.cache_resource
 def load_cnn():
-    if not CNN_MODEL_PATH.exists():
+    if not CNN_MODEL_PATH.exists() or CNN_MODEL_PATH.stat().st_size < 100000:
         return None
 
     model = models.resnet34(weights=None)
@@ -105,7 +105,7 @@ def load_cnn():
 @st.cache_resource
 def load_yolo():
     weights_path = BASE_DIR / YOLO_PATH
-    if weights_path.exists() and weights_path.is_file() and weights_path.stat().st_size > 1000:
+    if weights_path.exists() and weights_path.is_file() and weights_path.stat().st_size > 100000:
         return YOLO(str(weights_path))
     return None
 
