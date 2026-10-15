@@ -10,7 +10,7 @@ from PIL import Image
 from torchvision import models, transforms
 from ultralytics import YOLO
 
-FILE_ID = "1mxUO_r_Lub4MRvAyFWZ_OGbd8-N0DHjJ"
+FILE_ID = "1Y8Z5WslwgcNiDL_znPE6bet14ZmP92F_"
 MODEL_PATH = "best_resnet_gtsrb.pth"
 
 @st.cache_resource
