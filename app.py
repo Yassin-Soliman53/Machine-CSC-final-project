@@ -1,7 +1,7 @@
 import io
 from pathlib import Path
 import os
-import gdown
+import urllib.request
 import cv2
 import pandas as pd
 import streamlit as st
@@ -17,9 +17,19 @@ MODEL_PATH = "best_resnet_gtsrb.pth"
 @st.cache_resource
 def download_model():
     if not os.path.exists(MODEL_PATH):
-        with st.spinner("جاري تحميل نموذج ResNet34 الذكي من السحابة... برجاء الانتظار..."):
+        with st.spinner("ًWait ..."):
             url = f"https://drive.google.com/uc?export=download&id={FILE_ID}"
-            gdown.download(url, MODEL_PATH, quiet=False, fuzzy=True)
+            try:
+                opener = urllib.request.build_opener()
+                opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+                urllib.request.install_opener(opener)
+                response = urllib.request.urlopen(url)
+                content = response.read()
+                with open(MODEL_PATH, "wb") as f:
+                    f.write(content)
+            except Exception:
+                import gdown
+                gdown.download(id=FILE_ID, output=MODEL_PATH, fuzzy=True)
 
 download_model()
 
@@ -59,7 +69,7 @@ st.set_page_config(
 )
 
 st.title("ML CSC Final Project - Traffic Sign Recognition")
-st.write("Upload a traffic sign image. ResNet34 CNN classifies the image, and YOLOv8 detects traffic signs with bounding boxes.")
+st.write("Upload a traffic sign image...")
 
 @st.cache_resource
 def load_cnn():
@@ -147,7 +157,7 @@ if uploaded_file is not None:
     yolo_model = load_yolo()
     
     if yolo_model is None:
-        st.error("YOLO weights not found. Please ensure yolov8n.pt or best.pt is uploaded to GitHub.")
+        st.error("YOLO weights not found..")
     else:
         with st.spinner("Detecting objects..."):
             result = yolo_model.predict(source=image, conf=threshold, device="cpu", verbose=False)[0]
