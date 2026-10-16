@@ -51,6 +51,8 @@ def download_models():
     _fetch_model(YOLO_FILE_ID, YOLO_PATH, "YOLO")
 
 download_models()
+import hashlib
+st.sidebar.write("YOLO:", os.path.getsize(YOLO_PATH), hashlib.md5(open(YOLO_PATH, "rb").read()).hexdigest())
 
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
