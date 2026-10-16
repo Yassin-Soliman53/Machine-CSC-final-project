@@ -16,16 +16,39 @@ RESNET_PATH = "best_resnet_gtsrb.pth"
 YOLO_FILE_ID = "1cLBmPcbHnJfc5gigszh6NfKlq1SjmhLf"
 YOLO_PATH = "best.pt"
 
+# غيّر الرقم ده كل ما تحدّث الموديلات في Drive عشان يتنزلوا من جديد
+MODEL_VERSION = "v2"
+
+
+def _fetch_model(file_id, path, label):
+    import gdown
+    marker = path + ".version"
+    up_to_date = (
+        os.path.exists(path)
+        and os.path.getsize(path) >= 100000
+        and os.path.exists(marker)
+        and open(marker).read().strip() == MODEL_VERSION
+    )
+    if up_to_date:
+        return
+
+    if os.path.exists(path):
+        os.remove(path)
+
+    with st.spinner(f"Downloading {label} model..."):
+        gdown.download(id=file_id, output=path, quiet=False)
+
+    if not os.path.exists(path) or os.path.getsize(path) < 100000:
+        raise RuntimeError(f"Failed to download {label} model from Google Drive.")
+
+    with open(marker, "w") as f:
+        f.write(MODEL_VERSION)
+
+
 @st.cache_resource
 def download_models():
-    import gdown
-    if not os.path.exists(RESNET_PATH) or os.path.getsize(RESNET_PATH) < 100000:
-        with st.spinner("Downloading ResNet model..."):
-            gdown.download(id=RESNET_FILE_ID, output=RESNET_PATH, quiet=False)
-            
-    if not os.path.exists(YOLO_PATH) or os.path.getsize(YOLO_PATH) < 100000:
-        with st.spinner("Downloading YOLO model..."):
-            gdown.download(id=YOLO_FILE_ID, output=YOLO_PATH, quiet=False)
+    _fetch_model(RESNET_FILE_ID, RESNET_PATH, "ResNet")
+    _fetch_model(YOLO_FILE_ID, YOLO_PATH, "YOLO")
 
 download_models()
 
