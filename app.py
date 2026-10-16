@@ -51,16 +51,7 @@ def download_models():
 
 download_models()
 
-# ---- تشخيص مؤقت (شيله بعد ما تخلص) ----
-import hashlib, sys, importlib.metadata as m
-st.sidebar.write("YOLO:", os.path.getsize(YOLO_PATH), hashlib.md5(open(YOLO_PATH, "rb").read()).hexdigest())
-st.sidebar.write(sys.version)
-for p in ["ultralytics", "torch", "torchvision", "opencv-python-headless", "opencv-python", "numpy", "pillow"]:
-    try:
-        st.sidebar.write(p, m.version(p))
-    except Exception:
-        st.sidebar.write(p, "not installed")
-# ---------------------------------------
+
 
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
