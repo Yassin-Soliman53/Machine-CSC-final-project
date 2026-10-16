@@ -51,11 +51,6 @@ def download_models():
 
 download_models()
 
-import hashlib, sys, numpy as np, PIL, ultralytics
-st.sidebar.write("py:", sys.version.split()[0])
-st.sidebar.write("numpy:", np.__version__, "| pillow:", PIL.__version__)
-st.sidebar.write("opencv:", cv2.__version__)
-st.sidebar.write("img md5:", hashlib.md5(image.tobytes()).hexdigest())
 
 img_np = np.array(image)[:, :, ::-1]
 raw2 = yolo_model.predict(source=img_np, conf=0.001, imgsz=640, device="cpu", verbose=False)[0]
