@@ -2,7 +2,6 @@ streamlit==1.66.0
 torch==2.14.1
 torchvision==0.29.1
 ultralytics==8.4.175
-opencv-python-headless==5.0.0.93
 pandas==3.0.6
 pillow==12.3.0
 gdown==6.4.2
