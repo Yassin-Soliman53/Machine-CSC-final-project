@@ -50,22 +50,18 @@ def download_models():
     _fetch_model(YOLO_FILE_ID, YOLO_PATH, "YOLO")
 
 download_models()
-import hashlib
+
+# ---- تشخيص مؤقت (شيله بعد ما تخلص) ----
+import hashlib, sys, importlib.metadata as m
 st.sidebar.write("YOLO:", os.path.getsize(YOLO_PATH), hashlib.md5(open(YOLO_PATH, "rb").read()).hexdigest())
-import sys, importlib.metadata as m
 st.sidebar.write(sys.version)
 for p in ["ultralytics", "torch", "torchvision", "opencv-python-headless", "opencv-python", "numpy", "pillow"]:
     try:
         st.sidebar.write(p, m.version(p))
     except Exception:
         st.sidebar.write(p, "not installed")
-    try:
-        image = Image.open(io.BytesIO(uploaded_file.getvalue())).convert("RGB")
-    except Exception:
-        st.error("The uploaded file could not be opened as an image.")
-        st.stop()
+# ---------------------------------------
 
-    st.sidebar.write(image.size, image.mode, uploaded_file.size)
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
 DATA_DIR = BASE_DIR / "archive (3)"
@@ -161,6 +157,8 @@ if uploaded_file is not None:
     except Exception:
         st.error("The uploaded file could not be opened as an image.")
         st.stop()
+
+    st.sidebar.write("IMG:", image.size, image.mode, uploaded_file.size)  # تشخيص مؤقت
 
     st.subheader("Uploaded Image")
     st.image(image, caption=uploaded_file.name, use_container_width=True)
