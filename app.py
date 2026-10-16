@@ -233,6 +233,16 @@ if uploaded_file is not None:
     if yolo_model is None:
         st.error("YOLO weights (best.pt) not found.")
     else:
+        # ---- تشخيص مؤقت: مخرجات الموديل الخام (شيله بعد ما تخلص) ----
+        raw = yolo_model.predict(
+            source=image, conf=0.001, iou=0.45, imgsz=640, device="cpu", verbose=False
+        )[0]
+        st.sidebar.write("RAW boxes @conf=0.001:", 0 if raw.boxes is None else len(raw.boxes))
+        if raw.boxes is not None and len(raw.boxes) > 0:
+            best_i = int(raw.boxes.conf.argmax())
+            st.sidebar.write("top conf:", float(raw.boxes.conf[best_i]), "cls:", int(raw.boxes.cls[best_i]))
+        # ---------------------------------------------------------------
+
         with st.spinner("Detecting objects..."):
             result = yolo_model.predict(
                 source=image,
