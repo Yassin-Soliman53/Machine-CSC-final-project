@@ -60,7 +60,7 @@ for p in ["ultralytics", "torch", "torchvision", "opencv-python-headless", "open
         st.sidebar.write(p, m.version(p))
     except Exception:
         st.sidebar.write(p, "not installed")
-
+st.sidebar.write(image.size, image.mode, uploaded_file.size)
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
 DATA_DIR = BASE_DIR / "archive (3)"
