@@ -21,11 +21,11 @@ def download_models():
     import gdown
     if not os.path.exists(RESNET_PATH) or os.path.getsize(RESNET_PATH) < 100000:
         with st.spinner("Downloading ResNet model..."):
-            gdown.download(id=RESNET_FILE_ID, output=RESNET_PATH, quiet=False, fuzzy=True)
+            gdown.download(id=RESNET_FILE_ID, output=RESNET_PATH, quiet=False)
             
     if not os.path.exists(YOLO_PATH) or os.path.getsize(YOLO_PATH) < 100000:
         with st.spinner("Downloading YOLO model..."):
-            gdown.download(id=YOLO_FILE_ID, output=YOLO_PATH, quiet=False, fuzzy=True)
+            gdown.download(id=YOLO_FILE_ID, output=YOLO_PATH, quiet=False)
 
 download_models()
 
