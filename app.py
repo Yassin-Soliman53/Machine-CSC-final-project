@@ -2,6 +2,7 @@ import io
 from pathlib import Path
 import os
 import cv2
+import numpy as np  # <-- Added missing import
 import pandas as pd
 import streamlit as st
 import torch
@@ -50,11 +51,6 @@ def download_models():
     _fetch_model(YOLO_FILE_ID, YOLO_PATH, "YOLO")
 
 download_models()
-
-
-img_np = np.array(image)[:, :, ::-1]
-raw2 = yolo_model.predict(source=img_np, conf=0.001, imgsz=640, device="cpu", verbose=False)[0]
-st.sidebar.write("RAW boxes (numpy input):", 0 if raw2.boxes is None else len(raw2.boxes))
 
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
@@ -152,7 +148,15 @@ if uploaded_file is not None:
         st.error("The uploaded file could not be opened as an image.")
         st.stop()
 
-    st.sidebar.write("IMG:", image.size, image.mode, uploaded_file.size)  # تشخيص مؤقت
+    st.sidebar.write("IMG:", image.size, image.mode, uploaded_file.size)
+
+    # Now that 'image' and 'np' are defined, we can convert it safely:
+    img_np = np.array(image)[:, :, ::-1]
+    
+    yolo_model = load_yolo()
+    if yolo_model is not None:
+        raw2 = yolo_model.predict(source=img_np, conf=0.001, imgsz=640, device="cpu", verbose=False)[0]
+        st.sidebar.write("RAW boxes (numpy input):", 0 if raw2.boxes is None else len(raw2.boxes))
 
     st.subheader("Uploaded Image")
     st.image(image, caption=uploaded_file.name, use_container_width=True)
@@ -223,11 +227,9 @@ if uploaded_file is not None:
         step=0.05,
     )
 
-    yolo_model = load_yolo()
     if yolo_model is None:
         st.error("YOLO weights (best.pt) not found.")
     else:
-        # ---- تشخيص مؤقت: مخرجات الموديل الخام (شيله بعد ما تخلص) ----
         raw = yolo_model.predict(
             source=image, conf=0.001, iou=0.45, imgsz=640, device="cpu", verbose=False
         )[0]
@@ -235,7 +237,6 @@ if uploaded_file is not None:
         if raw.boxes is not None and len(raw.boxes) > 0:
             best_i = int(raw.boxes.conf.argmax())
             st.sidebar.write("top conf:", float(raw.boxes.conf[best_i]), "cls:", int(raw.boxes.cls[best_i]))
-        # ---------------------------------------------------------------
 
         with st.spinner("Detecting objects..."):
             result = yolo_model.predict(
