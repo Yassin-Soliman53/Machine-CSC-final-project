@@ -16,7 +16,6 @@ RESNET_PATH = "best_resnet_gtsrb.pth"
 YOLO_FILE_ID = "1cLBmPcbHnJfc5gigszh6NfKlq1SjmhLf"
 YOLO_PATH = "best.pt"
 
-# غيّر الرقم ده كل ما تحدّث الموديلات في Drive عشان يتنزلوا من جديد
 MODEL_VERSION = "v2"
 
 
@@ -60,7 +59,13 @@ for p in ["ultralytics", "torch", "torchvision", "opencv-python-headless", "open
         st.sidebar.write(p, m.version(p))
     except Exception:
         st.sidebar.write(p, "not installed")
-st.sidebar.write(image.size, image.mode, uploaded_file.size)
+    try:
+        image = Image.open(io.BytesIO(uploaded_file.getvalue())).convert("RGB")
+    except Exception:
+        st.error("The uploaded file could not be opened as an image.")
+        st.stop()
+
+    st.sidebar.write(image.size, image.mode, uploaded_file.size)
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
 DATA_DIR = BASE_DIR / "archive (3)"
