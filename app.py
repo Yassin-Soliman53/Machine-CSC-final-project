@@ -13,12 +13,8 @@ from torchvision import models, transforms
 from ultralytics import YOLO
 
 
-# =========================================================
-# Streamlit configuration
-# =========================================================
 st.set_page_config(
     page_title="ML CSC Final Project",
-    page_icon="🚦",
     layout="wide",
 )
 
@@ -27,20 +23,12 @@ st.write(
     "Upload a traffic sign image. ResNet34 classifies the sign, "
     "and YOLOv8 detects traffic signs with bounding boxes."
 )
-
-
-# =========================================================
-# Google Drive model IDs
-# These are the IDs from the links you provided.
-# =========================================================
 RESNET_FILE_ID = "1Y8Z5WslwgcNiDL_znPE6bet14ZmP92F_"
 RESNET_FILENAME = "best_resnet_gtsrb.pth"
 
 YOLO_FILE_ID = "1cLBmPcbHnJfc5gigszh6NfKlq1SjmhLf"
 YOLO_FILENAME = "best.pt"
 
-# SHA-256 copied from your PowerShell screenshot:
-# (Get-FileHash "D:\ml final project\best.pt" -Algorithm SHA256).Hash
 EXPECTED_YOLO_SHA256 = (
     "B12DD88AD523E1AC20B53855D8FEF048E228E23DEB5CBE020E969E5A60C21EDB"
 )
@@ -78,10 +66,6 @@ CLASS_NAMES = [
     "End of no passing for vehicles over 3.5 tonnes"
 ]
 
-
-# =========================================================
-# Utility functions
-# =========================================================
 def sha256_file(file_path: Path) -> str:
     """Calculate the SHA-256 hash without loading the whole file into RAM."""
     digest = hashlib.sha256()
@@ -107,9 +91,6 @@ def download_drive_file(file_id: str, destination: Path, label: str) -> None:
 
     if already_downloaded:
         return
-
-    # Remove stale files so a failed download cannot leave an old model
-    # that looks like the newly requested version.
     if destination.exists():
         destination.unlink()
     if marker.exists():
@@ -138,9 +119,7 @@ def download_drive_file(file_id: str, destination: Path, label: str) -> None:
     marker.write_text(MODEL_VERSION, encoding="utf-8")
 
 
-# =========================================================
-# Download and validate weights
-# =========================================================
+
 @st.cache_resource
 def download_models():
     download_drive_file(
@@ -154,8 +133,7 @@ def download_models():
         "YOLOv8",
     )
 
-    # Do not run a different checkpoint if the Drive download does not
-    # exactly match the best.pt hash from the user's local computer.
+
     actual_yolo_hash = sha256_file(YOLO_MODEL_PATH)
     if actual_yolo_hash != EXPECTED_YOLO_SHA256.upper():
         raise RuntimeError(
@@ -174,10 +152,6 @@ def download_models():
         "yolo_sha256": actual_yolo_hash,
     }
 
-
-# =========================================================
-# Load models
-# =========================================================
 @st.cache_resource
 def load_cnn():
     if not CNN_MODEL_PATH.is_file():
@@ -208,9 +182,6 @@ def load_yolo():
     return model
 
 
-# =========================================================
-# Ground-truth lookup
-# =========================================================
 @st.cache_data
 def load_ground_truth_lookup():
     lookup = {}
@@ -238,9 +209,6 @@ def load_ground_truth_lookup():
     return lookup
 
 
-# =========================================================
-# Download and load models with clear errors
-# =========================================================
 try:
     model_info = download_models()
 except Exception as exc:
@@ -272,20 +240,12 @@ if yolo_model is not None:
     st.sidebar.write("YOLO checkpoint class names:")
     st.sidebar.json(yolo_model.names)
 
-
-# =========================================================
-# ResNet preprocessing
-# =========================================================
 cnn_transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
     transforms.Normalize(MEAN, STD),
 ])
 
-
-# =========================================================
-# Image upload
-# =========================================================
 uploaded_file = st.file_uploader(
     "Choose a traffic sign image",
     type=["jpg", "jpeg", "png", "webp"],
@@ -307,9 +267,7 @@ if uploaded_file is not None:
     st.subheader("Uploaded Image")
     st.image(image, caption=uploaded_file.name, use_container_width=True)
 
-    # -----------------------------------------------------
-    # Ground truth
-    # -----------------------------------------------------
+   
     ground_truth = load_ground_truth_lookup()
     file_key = uploaded_file.name.lower()
     real_id = None
@@ -333,9 +291,7 @@ if uploaded_file is not None:
     st.write(f"**Real answer:** {real_answer}")
     st.divider()
 
-    # -----------------------------------------------------
-    # ResNet34 classification
-    # -----------------------------------------------------
+
     st.header("CNN Classification — ResNet34")
 
     if cnn_model is None:
