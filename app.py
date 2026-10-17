@@ -1,6 +1,6 @@
+import hashlib
 import io
 import os
-import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -13,9 +13,9 @@ from torchvision import models, transforms
 from ultralytics import YOLO
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Streamlit configuration
-# ---------------------------------------------------------
+# =========================================================
 st.set_page_config(
     page_title="ML CSC Final Project",
     page_icon="🚦",
@@ -29,25 +29,27 @@ st.write(
 )
 
 
-# ---------------------------------------------------------
-# Model configuration
-# ---------------------------------------------------------
+# =========================================================
+# Google Drive model IDs
+# These are the IDs from the links you provided.
+# =========================================================
 RESNET_FILE_ID = "1Y8Z5WslwgcNiDL_znPE6bet14ZmP92F_"
-RESNET_PATH = "best_resnet_gtsrb.pth"
+RESNET_FILENAME = "best_resnet_gtsrb.pth"
 
 YOLO_FILE_ID = "1cLBmPcbHnJfc5gigszh6NfKlq1SjmhLf"
-YOLO_PATH = "best.pt"
+YOLO_FILENAME = "best.pt"
 
-# Optional: paste the SHA-256 printed by your LOCAL trained best.pt.
-# Leave empty until you have compared the local and deployed model hashes.
-EXPECTED_YOLO_SHA256 = ""
+# SHA-256 copied from your PowerShell screenshot:
+# (Get-FileHash "D:\ml final project\best.pt" -Algorithm SHA256).Hash
+EXPECTED_YOLO_SHA256 = (
+    "B12DD88AD523E1AC20B53855D8FEF048E228E23DEB5CBE020E969E5A60C21EDB"
+)
 
-# Increment this value whenever you replace either model in Drive.
-MODEL_VERSION = "v4"
+MODEL_VERSION = "v5"
 
 BASE_DIR = Path(__file__).resolve().parent
-CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
-YOLO_MODEL_PATH = BASE_DIR / YOLO_PATH
+CNN_MODEL_PATH = BASE_DIR / RESNET_FILENAME
+YOLO_MODEL_PATH = BASE_DIR / YOLO_FILENAME
 DATA_DIR = BASE_DIR / "archive (3)"
 
 IMAGE_SIZE = 128
@@ -77,73 +79,108 @@ CLASS_NAMES = [
 ]
 
 
-# ---------------------------------------------------------
-# Model downloads
-# ---------------------------------------------------------
-def fetch_model(file_id: str, path: Path, label: str) -> None:
-    """Download model weights if missing or marked as an old version."""
+# =========================================================
+# Utility functions
+# =========================================================
+def sha256_file(file_path: Path) -> str:
+    """Calculate the SHA-256 hash without loading the whole file into RAM."""
+    digest = hashlib.sha256()
+    with file_path.open("rb") as model_file:
+        for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest().upper()
+
+
+def download_drive_file(file_id: str, destination: Path, label: str) -> None:
+    """Download one public Google Drive file to a known path."""
     import gdown
 
-    marker = Path(str(path) + ".version")
-    valid_existing_file = path.is_file() and path.stat().st_size >= 100_000
-    current_version = (
-        marker.is_file()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    marker = Path(str(destination) + ".version")
+
+    already_downloaded = (
+        destination.is_file()
+        and destination.stat().st_size > 100_000
+        and marker.is_file()
         and marker.read_text(encoding="utf-8").strip() == MODEL_VERSION
     )
 
-    if valid_existing_file and current_version:
+    if already_downloaded:
         return
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Remove stale/invalid weights and marker before downloading.
-    if path.exists():
-        path.unlink()
+    # Remove stale files so a failed download cannot leave an old model
+    # that looks like the newly requested version.
+    if destination.exists():
+        destination.unlink()
     if marker.exists():
         marker.unlink()
 
-    with st.spinner(f"Downloading {label} model..."):
+    with st.spinner(f"Downloading {label} model from Google Drive..."):
         downloaded_path = gdown.download(
             id=file_id,
-            output=str(path),
+            output=str(destination),
             quiet=False,
         )
 
     if (
         not downloaded_path
-        or not path.is_file()
-        or path.stat().st_size < 100_000
+        or not destination.is_file()
+        or destination.stat().st_size <= 100_000
     ):
+        if destination.exists():
+            destination.unlink()
         raise RuntimeError(
-            f"Could not download valid {label} weights. "
-            "Check the Google Drive sharing permissions and file ID."
+            f"Failed to download {label} weights. Check that the Google "
+            "Drive file is shared as 'Anyone with the link — Viewer', and "
+            "that the file ID is correct."
         )
 
     marker.write_text(MODEL_VERSION, encoding="utf-8")
 
 
+# =========================================================
+# Download and validate weights
+# =========================================================
 @st.cache_resource
 def download_models():
-    fetch_model(RESNET_FILE_ID, CNN_MODEL_PATH, "ResNet34")
-    fetch_model(YOLO_FILE_ID, YOLO_MODEL_PATH, "YOLOv8")
-    return True
+    download_drive_file(
+        RESNET_FILE_ID,
+        CNN_MODEL_PATH,
+        "ResNet34 CNN",
+    )
+    download_drive_file(
+        YOLO_FILE_ID,
+        YOLO_MODEL_PATH,
+        "YOLOv8",
+    )
+
+    # Do not run a different checkpoint if the Drive download does not
+    # exactly match the best.pt hash from the user's local computer.
+    actual_yolo_hash = sha256_file(YOLO_MODEL_PATH)
+    if actual_yolo_hash != EXPECTED_YOLO_SHA256.upper():
+        raise RuntimeError(
+            "The downloaded YOLO best.pt does NOT match your local trained "
+            "best.pt. The app has stopped rather than silently running a "
+            "different model.\n\n"
+            f"Expected SHA-256: {EXPECTED_YOLO_SHA256}\n"
+            f"Downloaded SHA-256: {actual_yolo_hash}\n\n"
+            "Check the Google Drive file ID and confirm that the file at "
+            "that ID is the exact best.pt from your local training folder."
+        )
+
+    return {
+        "cnn_path": str(CNN_MODEL_PATH),
+        "yolo_path": str(YOLO_MODEL_PATH),
+        "yolo_sha256": actual_yolo_hash,
+    }
 
 
-def sha256_file(file_path: Path) -> str:
-    """Return the SHA-256 hash of a file for exact checkpoint comparison."""
-    digest = hashlib.sha256()
-    with file_path.open("rb") as model_file:
-        for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-# ---------------------------------------------------------
-# Model loading
-# ---------------------------------------------------------
+# =========================================================
+# Load models
+# =========================================================
 @st.cache_resource
 def load_cnn():
-    if not CNN_MODEL_PATH.is_file() or CNN_MODEL_PATH.stat().st_size < 100_000:
+    if not CNN_MODEL_PATH.is_file():
         raise FileNotFoundError(f"CNN weights not found: {CNN_MODEL_PATH}")
 
     model = models.resnet34(weights=None)
@@ -164,52 +201,22 @@ def load_cnn():
 
 @st.cache_resource
 def load_yolo():
-    if not YOLO_MODEL_PATH.is_file() or YOLO_MODEL_PATH.stat().st_size < 100_000:
+    if not YOLO_MODEL_PATH.is_file():
         raise FileNotFoundError(f"YOLO weights not found: {YOLO_MODEL_PATH}")
 
     model = YOLO(str(YOLO_MODEL_PATH))
-
-    # Verify that this is the expected checkpoint, not merely a file named best.pt.
-    deployed_hash = sha256_file(YOLO_MODEL_PATH)
-    if EXPECTED_YOLO_SHA256.strip():
-        if deployed_hash.lower() != EXPECTED_YOLO_SHA256.strip().lower():
-            st.error(
-                "The deployed YOLO checkpoint hash does not match "
-                "EXPECTED_YOLO_SHA256. Check YOLO_FILE_ID and the Google Drive file."
-            )
-        else:
-            st.sidebar.success("YOLO checkpoint SHA-256 matches the expected hash.")
-
-    st.sidebar.subheader("Loaded YOLO checkpoint")
-    st.sidebar.write("File:", YOLO_MODEL_PATH.name)
-    st.sidebar.write("SHA-256:", deployed_hash)
-    st.sidebar.write("Saved class names:", model.names)
-
-    names = model.names
-    if isinstance(names, dict):
-        class_values = [str(value).strip() for value in names.values()]
-        numeric_names = all(value.isdigit() for value in class_values) if class_values else False
-        if numeric_names:
-            st.warning(
-                "The loaded YOLO checkpoint stores numeric class names only. "
-                "This can be normal if your training YAML used numeric names, "
-                "but verify that this is the checkpoint you trained and that "
-                "its dataset YAML has the intended class-name mapping."
-            )
-
     return model
 
 
-# ---------------------------------------------------------
+# =========================================================
 # Ground-truth lookup
-# ---------------------------------------------------------
+# =========================================================
 @st.cache_data
 def load_ground_truth_lookup():
     lookup = {}
 
     for csv_name in ["Test.csv", "Train.csv"]:
         csv_path = DATA_DIR / csv_name
-
         if not csv_path.is_file():
             continue
 
@@ -231,15 +238,21 @@ def load_ground_truth_lookup():
     return lookup
 
 
-# ---------------------------------------------------------
-# Load weights with useful error messages
-# ---------------------------------------------------------
+# =========================================================
+# Download and load models with clear errors
+# =========================================================
 try:
-    download_models()
+    model_info = download_models()
 except Exception as exc:
-    st.error("Could not download the model weights.")
+    st.error("Could not download or verify the model weights.")
     st.exception(exc)
     st.stop()
+
+st.sidebar.header("Model verification")
+st.sidebar.success("Downloaded YOLO checkpoint matches the local SHA-256.")
+st.sidebar.write("YOLO file:", YOLO_FILENAME)
+st.sidebar.code(model_info["yolo_sha256"])
+st.sidebar.write("YOLO weights size:", f"{YOLO_MODEL_PATH.stat().st_size:,} bytes")
 
 try:
     cnn_model = load_cnn()
@@ -255,10 +268,14 @@ except Exception as exc:
     st.exception(exc)
     yolo_model = None
 
+if yolo_model is not None:
+    st.sidebar.write("YOLO checkpoint class names:")
+    st.sidebar.json(yolo_model.names)
 
-# ---------------------------------------------------------
-# Image preprocessing for ResNet34
-# ---------------------------------------------------------
+
+# =========================================================
+# ResNet preprocessing
+# =========================================================
 cnn_transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
@@ -266,9 +283,9 @@ cnn_transform = transforms.Compose([
 ])
 
 
-# ---------------------------------------------------------
-# Upload image
-# ---------------------------------------------------------
+# =========================================================
+# Image upload
+# =========================================================
 uploaded_file = st.file_uploader(
     "Choose a traffic sign image",
     type=["jpg", "jpeg", "png", "webp"],
@@ -283,12 +300,9 @@ if uploaded_file is not None:
         st.error("The uploaded file could not be opened as an image.")
         st.stop()
 
-    st.sidebar.header("Deployment diagnostics")
     st.sidebar.write("Image dimensions:", image.size)
     st.sidebar.write("Image mode:", image.mode)
-    st.sidebar.write("Upload size:", f"{uploaded_file.size:,} bytes")
-    st.sidebar.write("PyTorch version:", torch.__version__)
-    st.sidebar.write("CUDA available:", torch.cuda.is_available())
+    st.sidebar.write("Uploaded bytes:", f"{uploaded_file.size:,}")
 
     st.subheader("Uploaded Image")
     st.image(image, caption=uploaded_file.name, use_container_width=True)
@@ -298,9 +312,8 @@ if uploaded_file is not None:
     # -----------------------------------------------------
     ground_truth = load_ground_truth_lookup()
     file_key = uploaded_file.name.lower()
-
-    real_answer = "Not specified"
     real_id = None
+    real_answer = "Not specified"
 
     if file_key in ground_truth:
         real_id = ground_truth[file_key]
@@ -313,7 +326,6 @@ if uploaded_file is not None:
                 f"{i}: {name}" for i, name in enumerate(CLASS_NAMES)
             ],
         )
-
         if selected_real != "Not specified":
             real_id = int(selected_real.split(":")[0])
             real_answer = f"{CLASS_NAMES[real_id]} (Class ID: {real_id})"
@@ -350,10 +362,9 @@ if uploaded_file is not None:
             c3.metric("Confidence", f"{confidence:.2f}%")
 
             if real_id is not None:
-                is_correct = predicted_id == real_id
                 st.write(
                     "**Comparison with real answer:** "
-                    + ("Correct" if is_correct else "Incorrect")
+                    + ("Correct" if predicted_id == real_id else "Incorrect")
                 )
 
             st.write("**Top 5 CNN predictions**")
@@ -361,9 +372,7 @@ if uploaded_file is not None:
                 "Traffic sign": [
                     CLASS_NAMES[int(i)] for i in top_indices
                 ],
-                "Class ID": [
-                    int(i) for i in top_indices
-                ],
+                "Class ID": [int(i) for i in top_indices],
                 "Probability (%)": [
                     round(float(score) * 100, 2)
                     for score in top_scores
@@ -380,7 +389,7 @@ if uploaded_file is not None:
             st.exception(exc)
 
     # -----------------------------------------------------
-    # YOLOv8 detection
+    # YOLOv8 object detection
     # -----------------------------------------------------
     st.divider()
     st.header("Object Detection — YOLOv8")
@@ -398,17 +407,7 @@ if uploaded_file is not None:
     else:
         try:
             with st.spinner("Running YOLOv8 detection..."):
-                # Use the same RGB PIL image for every prediction.
-                # Ultralytics accepts PIL images in RGB format.
-                raw_result = yolo_model.predict(
-                    source=image,
-                    conf=0.001,
-                    iou=0.45,
-                    imgsz=640,
-                    device="cpu",
-                    verbose=False,
-                )[0]
-
+                # Ultralytics accepts an RGB PIL image directly.
                 result = yolo_model.predict(
                     source=image,
                     conf=threshold,
@@ -418,48 +417,10 @@ if uploaded_file is not None:
                     verbose=False,
                 )[0]
 
-            raw_boxes = raw_result.boxes
             boxes = result.boxes
+            count = 0 if boxes is None else len(boxes)
 
-            raw_count = 0 if raw_boxes is None else len(raw_boxes)
-            final_count = 0 if boxes is None else len(boxes)
-
-            # Diagnostic information helps compare the public deployment
-            # against the local environment.
-            st.sidebar.subheader("YOLO diagnostics")
-            st.sidebar.write("Weights file:", YOLO_MODEL_PATH.name)
-            st.sidebar.write(
-                "Weights size:",
-                f"{YOLO_MODEL_PATH.stat().st_size:,} bytes",
-            )
-            st.sidebar.write("YOLO class names:", yolo_model.names)
-            st.sidebar.write("Raw boxes at confidence 0.001:", raw_count)
-            st.sidebar.write("Boxes at selected threshold:", final_count)
-
-            if raw_boxes is not None and raw_count > 0:
-                st.sidebar.write(
-                    "Raw confidence scores:",
-                    [
-                        round(float(x), 5)
-                        for x in raw_boxes.conf.cpu().tolist()
-                    ],
-                )
-                st.sidebar.write(
-                    "Raw class IDs:",
-                    [
-                        int(x)
-                        for x in raw_boxes.cls.cpu().tolist()
-                    ],
-                )
-            else:
-                st.warning(
-                    "YOLO returned no boxes even at confidence 0.001. "
-                    "Check that the deployed best.pt is the same trained "
-                    "checkpoint used locally, and that it was trained to "
-                    "detect signs in full images."
-                )
-
-            # Ultralytics result.plot() returns a BGR NumPy image.
+            # plot() returns a BGR NumPy array.
             annotated_bgr = result.plot()
             annotated_rgb = annotated_bgr[:, :, ::-1].copy()
 
@@ -473,11 +434,12 @@ if uploaded_file is not None:
                 )
 
             with results_col:
-                st.metric("Objects detected", final_count)
+                st.metric("Objects detected", count)
 
-                if final_count == 0:
+                if count == 0:
                     st.info(
-                        "No objects detected at this confidence threshold."
+                        "No objects detected at this confidence threshold. "
+                        "Try a lower threshold or a clearer image."
                     )
                 else:
                     names = result.names
@@ -488,9 +450,7 @@ if uploaded_file is not None:
                         confidence_value = float(box.conf.item()) * 100
 
                         if isinstance(names, dict):
-                            class_name = names.get(
-                                class_id, str(class_id)
-                            )
+                            class_name = names.get(class_id, str(class_id))
                         else:
                             class_name = (
                                 names[class_id]
@@ -499,7 +459,6 @@ if uploaded_file is not None:
                             )
 
                         xyxy = box.xyxy[0].cpu().tolist()
-
                         rows.append({
                             "Detected class": class_name,
                             "Class ID": class_id,
