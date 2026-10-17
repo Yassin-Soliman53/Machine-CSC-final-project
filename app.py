@@ -1,5 +1,6 @@
 import io
 import os
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -37,8 +38,12 @@ RESNET_PATH = "best_resnet_gtsrb.pth"
 YOLO_FILE_ID = "1cLBmPcbHnJfc5gigszh6NfKlq1SjmhLf"
 YOLO_PATH = "best.pt"
 
+# Optional: paste the SHA-256 printed by your LOCAL trained best.pt.
+# Leave empty until you have compared the local and deployed model hashes.
+EXPECTED_YOLO_SHA256 = ""
+
 # Increment this value whenever you replace either model in Drive.
-MODEL_VERSION = "v3"
+MODEL_VERSION = "v4"
 
 BASE_DIR = Path(__file__).resolve().parent
 CNN_MODEL_PATH = BASE_DIR / RESNET_PATH
@@ -124,6 +129,15 @@ def download_models():
     return True
 
 
+def sha256_file(file_path: Path) -> str:
+    """Return the SHA-256 hash of a file for exact checkpoint comparison."""
+    digest = hashlib.sha256()
+    with file_path.open("rb") as model_file:
+        for chunk in iter(lambda: model_file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 # ---------------------------------------------------------
 # Model loading
 # ---------------------------------------------------------
@@ -154,6 +168,35 @@ def load_yolo():
         raise FileNotFoundError(f"YOLO weights not found: {YOLO_MODEL_PATH}")
 
     model = YOLO(str(YOLO_MODEL_PATH))
+
+    # Verify that this is the expected checkpoint, not merely a file named best.pt.
+    deployed_hash = sha256_file(YOLO_MODEL_PATH)
+    if EXPECTED_YOLO_SHA256.strip():
+        if deployed_hash.lower() != EXPECTED_YOLO_SHA256.strip().lower():
+            st.error(
+                "The deployed YOLO checkpoint hash does not match "
+                "EXPECTED_YOLO_SHA256. Check YOLO_FILE_ID and the Google Drive file."
+            )
+        else:
+            st.sidebar.success("YOLO checkpoint SHA-256 matches the expected hash.")
+
+    st.sidebar.subheader("Loaded YOLO checkpoint")
+    st.sidebar.write("File:", YOLO_MODEL_PATH.name)
+    st.sidebar.write("SHA-256:", deployed_hash)
+    st.sidebar.write("Saved class names:", model.names)
+
+    names = model.names
+    if isinstance(names, dict):
+        class_values = [str(value).strip() for value in names.values()]
+        numeric_names = all(value.isdigit() for value in class_values) if class_values else False
+        if numeric_names:
+            st.warning(
+                "The loaded YOLO checkpoint stores numeric class names only. "
+                "This can be normal if your training YAML used numeric names, "
+                "but verify that this is the checkpoint you trained and that "
+                "its dataset YAML has the intended class-name mapping."
+            )
+
     return model
 
 
