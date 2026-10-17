@@ -102,7 +102,6 @@ def fetch_model(file_id: str, path: Path, label: str) -> None:
             id=file_id,
             output=str(path),
             quiet=False,
-            fuzzy=True,
         )
 
     if (
